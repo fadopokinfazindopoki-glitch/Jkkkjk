@@ -1,0 +1,45 @@
+name: Build
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Achar o projeto (abre o zip se precisar)
+        run: |
+          if [ ! -f build.gradle ]; then
+            for z in *.zip; do [ -f "$z" ] && unzip -oq "$z"; done
+          fi
+          G=$(find . -name build.gradle -not -path './.git/*' | head -n1)
+          [ -z "$G" ] && { echo "build.gradle nao encontrado"; ls -R | head -50; exit 1; }
+          echo "PROJ=$(dirname "$G")" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.10.2
+
+      - name: Build
+        working-directory: ${{ env.PROJ }}
+        run: gradle build --no-daemon --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: waterfisic-jar
+          path: |
+            ${{ env.PROJ }}/build/libs/*.jar
+            !${{ env.PROJ }}/build/libs/*-sources.jar
